@@ -1,4 +1,4 @@
-const API_KEY = "GEMINI_API_KEY";
+
 const chat = document.getElementById("chat");
 const messageInput = document.getElementById("message");
 const sendButton = document.getElementById("send");
@@ -110,8 +110,7 @@ async function sendMessage() {
     charCounter.textContent = "2000 characters remaining";
 
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
+        const response = await fetch("/api/chat",
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
