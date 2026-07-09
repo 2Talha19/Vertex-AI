@@ -1,4 +1,4 @@
-const API_KEY = "
+const API_KEY = "GEMINI_API_KEY";
 const chat = document.getElementById("chat");
 const messageInput = document.getElementById("message");
 const sendButton = document.getElementById("send");
