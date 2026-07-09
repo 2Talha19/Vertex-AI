@@ -1,22 +1,25 @@
-const API_KEY = "Add ure api ";
-
+const API_KEY = "
 const chat = document.getElementById("chat");
 const messageInput = document.getElementById("message");
 const sendButton = document.getElementById("send");
 const newChatButton = document.getElementById("newChat");
 const charCounter = document.getElementById("charCounter");
+const themeToggle = document.getElementById("themeToggle");
+const micButton = document.getElementById("mic");
 let chatHistory = [];
+const saved = localStorage.getItem("chatHistory");
+if (saved) chatHistory = JSON.parse(saved);
+
 let isSending = false;
 
-addMessage("bot", "👋 Hello! I'm Vertex. How can I help you today?");
+if (chatHistory.length === 0) {
+    addMessage("bot", "👋 Hello! I'm Vertex. How can I help you today?");
+}
 
-// Character counter
 messageInput.addEventListener("input", function() {
     const remaining = 2000 - this.value.length;
     charCounter.textContent = `${remaining} characters remaining`;
-    if (remaining < 100) charCounter.style.color = "#ef4444";
-    else if (remaining < 300) charCounter.style.color = "#eab308";
-    else charCounter.style.color = "#64748b";
+    charCounter.style.color = remaining < 100 ? "#ef4444" : remaining < 300 ? "#eab308" : "#64748b";
 });
 
 function addMessage(sender, text) {
@@ -32,7 +35,7 @@ function addMessage(sender, text) {
 
     const name = document.createElement("div");
     name.className = "name";
-    name.textContent = sender === "user" ? "You" : "vertex AI";
+    name.textContent = sender === "user" ? "You" : "Vertex AI";
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
@@ -45,6 +48,23 @@ function addMessage(sender, text) {
     content.appendChild(name);
     content.appendChild(bubble);
     content.appendChild(timestamp);
+
+    if (sender === "bot") {
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        actions.innerHTML = `<button>👍</button><button>👎</button>`;
+        content.appendChild(actions);
+
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "copy-btn";
+        copyBtn.innerHTML = "📋 Copy";
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(bubble.innerText);
+            copyBtn.innerHTML = "✅ Copied";
+            setTimeout(() => copyBtn.innerHTML = "📋 Copy", 1500);
+        };
+        content.appendChild(copyBtn);
+    }
 
     message.appendChild(avatar);
     message.appendChild(content);
@@ -61,9 +81,7 @@ function showTypingIndicator() {
         <div class="content">
             <div class="name">Vertex</div>
             <div class="bubble typing">
-                <span></span>
-                <span></span>
-                <span></span>
+                <span></span><span></span><span></span>
             </div>
         </div>
     `;
@@ -73,10 +91,24 @@ function showTypingIndicator() {
 
 function removeTypingIndicator() {
     const typing = document.getElementById("typing-indicator");
-    if(typing) typing.remove();
+    if (typing) typing.remove();
 }
 
-async function sendMessageWithRetry(message, retries = 3) {
+async function sendMessage() {
+    if (isSending) return;
+    const message = messageInput.value.trim();
+    if (!message) return;
+
+    isSending = true;
+    sendButton.disabled = true;
+
+    addMessage("user", message);
+    showTypingIndicator();
+    chatHistory.push({ role: "user", parts: [{ text: message }] });
+    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+    messageInput.value = "";
+    charCounter.textContent = "2000 characters remaining";
+
     try {
         const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
@@ -87,53 +119,17 @@ async function sendMessageWithRetry(message, retries = 3) {
             }
         );
         const data = await response.json();
-        if (data.error && retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return sendMessageWithRetry(message, retries - 1);
-        }
-        return data;
-    } catch (error) {
-        if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return sendMessageWithRetry(message, retries - 1);
-        }
-        throw error;
-    }
-}
-
-async function sendMessage() {
-    if (isSending) return;
-    
-    const message = messageInput.value.trim();
-    if (!message) return;
-
-    isSending = true;
-    sendButton.disabled = true;
-
-    addMessage("user", message);
-    showTypingIndicator();
-    chatHistory.push({ role: "user", parts: [{ text: message }] });
-    messageInput.value = "";
-    charCounter.textContent = "2000 characters remaining";
-
-    try {
-        const data = await sendMessageWithRetry(message);
         removeTypingIndicator();
 
         if (data.error) {
             addMessage("bot", "❌ " + data.error.message);
-            isSending = false;
-            sendButton.disabled = false;
-            return;
+        } else {
+            const reply = data.candidates[0].content.parts[0].text;
+            addMessage("bot", reply);
+            chatHistory.push({ role: "model", parts: [{ text: reply }] });
         }
-
-        const reply = data.candidates[0].content.parts[0].text;
-        addMessage("bot", reply);
-        chatHistory.push({ role: "model", parts: [{ text: reply }] });
-
     } catch (error) {
         removeTypingIndicator();
-        console.error(error);
         addMessage("bot", "❌ Unable to connect to Gemini. Please check your internet connection.");
     } finally {
         isSending = false;
@@ -147,20 +143,13 @@ function newChat() {
     addMessage("bot", "👋 Hello! I'm Vertex. How can I help you today?");
 }
 
-// Keyboard shortcuts
 messageInput.addEventListener("keydown", function(event) {
     if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         sendMessage();
     }
-    if (event.key === "Escape") {
-        this.value = "";
-        charCounter.textContent = "2000 characters remaining";
-        charCounter.style.color = "#64748b";
-    }
 });
 
-// Ctrl+Enter shortcut for desktop
 document.addEventListener("keydown", function(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
@@ -168,5 +157,32 @@ document.addEventListener("keydown", function(event) {
     }
 });
 
+themeToggle.onclick = () => {
+    document.body.classList.toggle("light");
+    localStorage.setItem("theme", document.body.classList.contains("light"));
+};
+
+if (localStorage.getItem("theme") === "true") {
+    document.body.classList.add("light");
+}
+
+document.querySelectorAll(".suggestions button").forEach(btn => {
+    btn.onclick = () => {
+        messageInput.value = btn.innerText;
+        messageInput.focus();
+    };
+});
+
 sendButton.addEventListener("click", sendMessage);
 newChatButton.addEventListener("click", newChat);
+
+if ('webkitSpeechRecognition' in window) {
+    const recognition = new webkitSpeechRecognition();
+    recognition.lang = "en-US";
+    micButton.onclick = () => recognition.start();
+    recognition.onresult = (e) => {
+        messageInput.value = e.results[0][0].transcript;
+    };
+} else {
+    micButton.style.display = "none";
+}
